@@ -46,7 +46,10 @@ describe('Countdown', () => {
     expect(screen.getByText('0:03')).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText('0:02')).toBeInTheDocument();
-    act(() => vi.advanceTimersByTime(2000));
+    // One tick per act: each re-render schedules the next one-second timer.
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.getByText('0:01')).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText('Payment window closed')).toBeInTheDocument();
     expect(onExpire).toHaveBeenCalledTimes(1);
   });
