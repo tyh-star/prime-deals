@@ -1,0 +1,67 @@
+# One-command local stack:  docker compose up --build
+# Shop:  http://localhost:8080      API docs: http://localhost:8080/api/docs
+name: prime-deals
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prime
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-prime}
+      POSTGRES_DB: prime_deals
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U prime -d prime_deals']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    # AOF so pending order-timeout jobs survive a Redis restart (the sweeper covers the rest).
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgres://prime:${POSTGRES_PASSWORD:-prime}@postgres:5432/prime_deals
+      REDIS_URL: redis://redis:6379/0
+      # Set a real secret for anything beyond local use: `JWT_SECRET=$(openssl rand -hex 32) docker compose up`
+      JWT_SECRET: ${JWT_SECRET:-local-compose-secret-please-override-0123456789}
+      ORDER_PAYMENT_TTL_SECONDS: ${ORDER_PAYMENT_TTL_SECONDS:-900}
+      ORDER_SWEEP_INTERVAL_MS: 30000
+      UPLOAD_DIR: /data/uploads
+      CORS_ORIGIN: http://localhost:8080
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin12345}
+      SEED_DEMO: ${SEED_DEMO:-true}
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    ports:
+      - '${PORT:-8080}:80'
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
+  uploads:

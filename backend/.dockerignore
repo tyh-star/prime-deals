@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+uploads
+test
+.env
+*.log
