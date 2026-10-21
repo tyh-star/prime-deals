@@ -5,6 +5,7 @@ import { api } from '../api/endpoints';
 import type { Order, OrderAction, OrderStatus } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import {
+  ConfirmButton,
   Countdown,
   EmptyState,
   ErrorNote,
@@ -38,19 +39,22 @@ export function OrderActions({ order, onDone }: { order: Order; onDone?: (o: Ord
   if (order.actions.length === 0) return null;
   return (
     <div className="actions">
-      {order.actions.map((action) => (
-        <button
-          key={action}
-          className={`btn ${action === 'CANCEL' ? 'btn-quiet' : 'btn-ink'}`}
-          disabled={act.isPending}
-          onClick={() => {
-            if (action === 'CANCEL' && !window.confirm('Cancel this order? The items go back on sale.')) return;
-            act.mutate(action);
-          }}
-        >
-          {act.isPending && act.variables === action ? 'Working…' : ACTION_LABEL[action]}
-        </button>
-      ))}
+      {order.actions.map((action) =>
+        action === 'CANCEL' ? (
+          <ConfirmButton
+            key={action}
+            label={ACTION_LABEL.CANCEL}
+            question="Cancel this order? The items go back on sale."
+            confirmLabel="Yes, cancel order"
+            disabled={act.isPending}
+            onConfirm={() => act.mutate(action)}
+          />
+        ) : (
+          <button key={action} className="btn btn-ink" disabled={act.isPending} onClick={() => act.mutate(action)}>
+            {act.isPending && act.variables === action ? 'Working…' : ACTION_LABEL[action]}
+          </button>
+        ),
+      )}
       <ErrorNote error={act.error} />
     </div>
   );

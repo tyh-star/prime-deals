@@ -3,7 +3,7 @@ import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api/endpoints';
 import type { Product } from '../api/types';
-import { EmptyState, ErrorNote, PriceTag, ProductArt } from '../components/ui';
+import { ConfirmButton, EmptyState, ErrorNote, PriceTag, ProductArt } from '../components/ui';
 import { OrderTable } from './OrderPages';
 
 const STATUS_COPY: Record<Product['status'], string> = {
@@ -210,14 +210,13 @@ export function SellerPage() {
                   <button className="btn btn-quiet" onClick={() => setEditing(p)}>
                     Edit
                   </button>
-                  <button
-                    className="btn btn-quiet"
-                    onClick={() => {
-                      if (window.confirm(`Archive “${p.name}”? It will be taken off sale.`)) archive.mutate(p.id);
-                    }}
-                  >
-                    Archive
-                  </button>
+                  <ConfirmButton
+                    label="Archive"
+                    question="Take this listing off sale?"
+                    confirmLabel="Archive listing"
+                    disabled={archive.isPending}
+                    onConfirm={() => archive.mutate(p.id)}
+                  />
                 </div>
               </div>
             )}

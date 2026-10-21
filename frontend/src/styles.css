@@ -1049,3 +1049,12 @@ main:focus {
   align-items: center;
   gap: 12px;
 }
+.confirm {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.demo-banner .confirm .btn {
+  padding: 3px 10px;
+}

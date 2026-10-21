@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, useNavigate, useSearchParams } from 'react-route
 import { api } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
 import { IS_DEMO } from '../lib/demo';
+import { ConfirmButton } from './ui';
 
 function SearchBox() {
   const [params] = useSearchParams();
@@ -38,7 +39,6 @@ function SearchBox() {
 
 function DemoBanner() {
   const reset = async () => {
-    if (!window.confirm('Reset all demo data? Orders, listings and accounts you created will be removed.')) return;
     const { demoServer } = await import('../demo/demoServer');
     demoServer().reset();
     localStorage.removeItem('pd.token');
@@ -51,9 +51,13 @@ function DemoBanner() {
         expire after 3 minutes.{' '}
         <a href="https://github.com/tyh-star/prime-deals">Source on GitHub</a>
       </p>
-      <button className="link-button" onClick={reset}>
-        Reset demo data
-      </button>
+      <ConfirmButton
+        className="link-button"
+        label="Reset demo data"
+        question="Remove the orders, listings and accounts you created?"
+        confirmLabel="Reset"
+        onConfirm={reset}
+      />
     </div>
   );
 }

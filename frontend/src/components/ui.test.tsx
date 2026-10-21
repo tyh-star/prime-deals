@@ -1,5 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
-import { Countdown, OrderTrack, PriceTag, ProductArt } from './ui';
+import userEvent from '@testing-library/user-event';
+import { ConfirmButton, Countdown, OrderTrack, PriceTag, ProductArt } from './ui';
 
 describe('PriceTag', () => {
   it('exposes the full price to assistive tech', () => {
@@ -52,5 +53,21 @@ describe('Countdown', () => {
     act(() => vi.advanceTimersByTime(1000));
     expect(screen.getByText('Payment window closed')).toBeInTheDocument();
     expect(onExpire).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ConfirmButton', () => {
+  it('asks before acting, and can be backed out of', async () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmButton label="Cancel order" question="Cancel this order?" confirmLabel="Yes, cancel" onConfirm={onConfirm} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel order' }));
+    expect(screen.getByText('Cancel this order?')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Keep it' }));
+    expect(onConfirm).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel order' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Yes, cancel' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button', { name: 'Cancel order' })).toBeInTheDocument();
   });
 });

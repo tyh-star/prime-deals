@@ -183,6 +183,55 @@ export function RequireRole({ roles, children }: { roles?: Role[]; children: Rea
   return <>{children}</>;
 }
 
+/**
+ * Two-step destructive action: the first click asks, the second acts.
+ * Used instead of window.confirm(), which some embedded viewers block.
+ */
+export function ConfirmButton({
+  label,
+  question,
+  confirmLabel,
+  onConfirm,
+  disabled,
+  className = 'btn btn-quiet',
+}: {
+  label: string;
+  question: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  disabled?: boolean;
+  className?: string;
+}) {
+  const [asking, setAsking] = useState(false);
+  if (!asking) {
+    return (
+      <button type="button" className={className} disabled={disabled} onClick={() => setAsking(true)}>
+        {label}
+      </button>
+    );
+  }
+  return (
+    <span className="confirm" role="group" aria-label={question}>
+      <span>{question}</span>
+      <button
+        type="button"
+        className="btn btn-danger"
+        disabled={disabled}
+        autoFocus
+        onClick={() => {
+          setAsking(false);
+          onConfirm();
+        }}
+      >
+        {confirmLabel}
+      </button>
+      <button type="button" className="btn btn-quiet" onClick={() => setAsking(false)}>
+        Keep it
+      </button>
+    </span>
+  );
+}
+
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {
   return (
     <div className="empty">
