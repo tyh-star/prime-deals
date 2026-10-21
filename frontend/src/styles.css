@@ -361,7 +361,12 @@ main {
 .shelf-head h1 {
   margin: 0;
 }
+.sort select {
+  min-width: 0;
+  max-width: 100%;
+}
 .sort {
+  min-width: 0;
   display: flex;
   gap: 8px;
   align-items: center;
@@ -720,6 +725,10 @@ textarea {
 }
 .line-items .art {
   border-radius: var(--radius-s);
+}
+.line-items .art-placeholder span,
+.cart-art .art-placeholder span {
+  font-size: 1.6rem;
 }
 .order .total {
   max-width: 380px;
