@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, HashRouter, Route, Routes } from 'react-router-dom';
 import { ApiError } from './api/client';
 import { AuthProvider } from './auth/AuthContext';
 import { Layout } from './components/Layout';
+import { IS_DEMO } from './lib/demo';
 import { RequireRole } from './components/ui';
 import { AdminPage } from './pages/AdminPage';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
@@ -53,14 +54,17 @@ export function AppRoutes() {
   );
 }
 
+// The static demo is served from a sub-path with no server rewrites, so it uses hash URLs.
+const Router = IS_DEMO ? HashRouter : BrowserRouter;
+
 export function App() {
   const [client] = useState(createQueryClient);
   return (
     <QueryClientProvider client={client}>
       <AuthProvider>
-        <BrowserRouter>
+        <Router>
           <AppRoutes />
-        </BrowserRouter>
+        </Router>
       </AuthProvider>
     </QueryClientProvider>
   );

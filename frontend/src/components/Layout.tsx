@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate, useSearchParams } from 'react-router-dom';
 import { api } from '../api/endpoints';
 import { useAuth } from '../auth/AuthContext';
+import { IS_DEMO } from '../lib/demo';
 
 function SearchBox() {
   const [params] = useSearchParams();
@@ -35,6 +36,28 @@ function SearchBox() {
   );
 }
 
+function DemoBanner() {
+  const reset = async () => {
+    if (!window.confirm('Reset all demo data? Orders, listings and accounts you created will be removed.')) return;
+    const { demoServer } = await import('../demo/demoServer');
+    demoServer().reset();
+    localStorage.removeItem('pd.token');
+    window.location.reload();
+  };
+  return (
+    <div className="demo-banner" role="note">
+      <p>
+        Demo: this copy runs entirely in your browser with sample data, and payment is simulated. Unpaid orders
+        expire after 3 minutes.{' '}
+        <a href="https://github.com/tyh-star/prime-deals">Source on GitHub</a>
+      </p>
+      <button className="link-button" onClick={reset}>
+        Reset demo data
+      </button>
+    </div>
+  );
+}
+
 export function Layout() {
   const { user, hasRole, signOut } = useAuth();
   const navigate = useNavigate();
@@ -43,9 +66,18 @@ export function Layout() {
 
   return (
     <>
-      <a href="#main" className="skip-link">
+      <a
+        href="#main"
+        className="skip-link"
+        onClick={(e) => {
+          // Move focus without touching the URL hash (the demo build routes by hash).
+          e.preventDefault();
+          document.getElementById('main')?.focus();
+        }}
+      >
         Skip to content
       </a>
+      {IS_DEMO && <DemoBanner />}
       <header className="masthead">
         <div className="masthead-inner">
           <Link to="/" className="wordmark" aria-label="Prime Deals home">
@@ -88,7 +120,7 @@ export function Layout() {
           </nav>
         </div>
       </header>
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         <Outlet />
       </main>
       <footer className="footer">

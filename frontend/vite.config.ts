@@ -4,6 +4,8 @@ import { defineConfig } from 'vitest/config';
 const api = process.env.VITE_DEV_API ?? 'http://localhost:3000';
 
 export default defineConfig({
+  // The demo build is a static site served from a sub-path, so assets use relative URLs.
+  base: process.env.VITE_DEMO === 'true' ? './' : '/',
   plugins: [react()],
   server: {
     port: 5173,

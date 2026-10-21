@@ -4,6 +4,7 @@ import { api } from '../api/endpoints';
 import type { CartLine } from '../api/types';
 import { EmptyState, ErrorNote, errorCode, PriceTag, ProductArt, QuantityStepper } from '../components/ui';
 import { formatMoney } from '../lib/format';
+import { PAYMENT_WINDOW_LABEL } from '../lib/demo';
 import { useCheckoutKey } from '../lib/useCheckoutKey';
 
 function CartRow({ line }: { line: CartLine }) {
@@ -113,7 +114,7 @@ export function CartPage() {
         <p className="total">
           Total <PriceTag cents={cart.data?.totalCents ?? 0} />
         </p>
-        <p className="muted">Stock is reserved when you place the order. You then have 15 minutes to pay.</p>
+        <p className="muted">Stock is reserved when you place the order. You then have {PAYMENT_WINDOW_LABEL} to pay.</p>
         <ErrorNote error={checkout.error} />
         <button
           className="btn btn-ink btn-block"

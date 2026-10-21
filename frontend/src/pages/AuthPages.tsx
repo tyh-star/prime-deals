@@ -5,6 +5,7 @@ import { api } from '../api/endpoints';
 import type { AuthResponse } from '../api/types';
 import { useAuth } from '../auth/AuthContext';
 import { ErrorNote } from '../components/ui';
+import { DEMO_ACCOUNTS, IS_DEMO } from '../lib/demo';
 
 function useAfterAuth() {
   const { signIn } = useAuth();
@@ -55,6 +56,28 @@ export function LoginPage() {
       <p className="muted">
         New here? <Link to="/register">Create an account</Link>
       </p>
+      {IS_DEMO && (
+        <div className="demo-accounts">
+          <h2>Try a demo account</h2>
+          <ul>
+            {DEMO_ACCOUNTS.map((a) => (
+              <li key={a.username}>
+                <button
+                  type="button"
+                  className="btn btn-quiet"
+                  disabled={login.isPending}
+                  onClick={() => login.mutate({ username: a.username, password: a.password })}
+                >
+                  Sign in as {a.role.toLowerCase()}
+                </button>
+                <span className="muted">
+                  {a.username} / {a.password}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
