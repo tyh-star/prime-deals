@@ -2,139 +2,156 @@
 
 [![CI](https://github.com/tyh-star/prime-deals/actions/workflows/ci.yml/badge.svg)](https://github.com/tyh-star/prime-deals/actions/workflows/ci.yml)
 
-一个多卖家电商平台：买家浏览、加购、下单、付款；卖家上传商品；管理员审核上架。
-这是 [dream-fire](https://github.com/tyh-star/dream-fire)（Spring Boot + MyBatis + Vue）的重写版，重点补上了旧版缺失的交易链路：**订单、库存防超卖、下单幂等、订单状态机、超时自动取消**。
+A multi-seller e-commerce platform. Buyers browse, add to cart, place orders and pay; sellers list products; admins review listings before they go live.
 
-| 层 | 技术 |
+This is a rewrite of [dream-fire](https://github.com/tyh-star/dream-fire) (Spring Boot + MyBatis + Vue). It keeps the original feature set and adds the transactional core the old version lacked: **orders, oversell protection, idempotent checkout, an explicit order state machine, and automatic cancellation of unpaid orders**.
+
+| Layer | Stack |
 | --- | --- |
-| 后端 | NestJS 11 · TypeORM 0.3 · PostgreSQL 16 · Redis 7 · BullMQ |
-| 前端 | React 18 · TypeScript · Vite · TanStack Query · React Router |
-| 测试 | Jest + Supertest（真实 Postgres/Redis 的 e2e）· Vitest + Testing Library |
-| 交付 | Docker Compose · GitHub Actions |
+| Backend | NestJS 11, TypeORM 0.3, PostgreSQL 16, Redis 7, BullMQ |
+| Frontend | React 18, TypeScript, Vite, TanStack Query, React Router |
+| Testing | Jest + Supertest (end-to-end against real Postgres and Redis), Vitest + Testing Library |
+| Delivery | Docker Compose, GitHub Actions |
 
-设计细节和取舍见 **[docs/DESIGN.md](docs/DESIGN.md)**。
+Design decisions and trade-offs are explained in **[docs/DESIGN.md](docs/DESIGN.md)**.
 
-## 快速开始（Docker）
+## Highlights
+
+- **No overselling.** Stock is deducted with a conditional `UPDATE ... WHERE stock >= :qty` inside the order transaction, rows are locked in a fixed order to avoid deadlocks, and a `CHECK (stock >= 0)` constraint backs it up. Tested: 30 concurrent buyers, 5 units in stock, exactly 5 orders succeed.
+- **Idempotent checkout.** Every order request carries an `Idempotency-Key`. Redis turns away concurrent duplicates cheaply; a unique `(user_id, idempotency_key)` index guarantees correctness even if Redis loses the key. Tested: the same key fired 10 times at once creates one order and deducts stock once.
+- **Order state machine.** Transitions are defined in a single table and applied with compare-and-set updates, so racing actions (pay vs. cancel, pay vs. timeout) can never both succeed.
+- **Automatic timeout.** Unpaid orders are cancelled and their stock released by a BullMQ delayed job, with a periodic database sweep as a safety net for lost jobs. Stock is released exactly once.
+
+## Quick start (Docker)
 
 ```bash
 docker compose up --build
 ```
 
-- 商城：http://localhost:8080
-- API 文档（Swagger）：http://localhost:8080/api/docs
-- 预置账号（`SEED_DEMO=true` 时创建）：
+- Shop: http://localhost:8080
+- API docs (Swagger): http://localhost:8080/api/docs
+- Demo accounts (created when `SEED_DEMO=true`, the default in Compose):
 
-  | 角色 | 用户名 | 密码 |
+  | Role | Username | Password |
   | --- | --- | --- |
-  | 管理员 | `admin` | `admin12345` |
-  | 卖家 | `demo-seller` | `demo-seller-pass` |
-  | 买家 | `demo-buyer` | `demo-buyer-pass` |
+  | Admin | `admin` | `admin12345` |
+  | Seller | `demo-seller` | `demo-seller-pass` |
+  | Buyer | `demo-buyer` | `demo-buyer-pass` |
 
-  "Flash-Sale Desk Lamp" 只有 3 件库存，可以用来手动体验防超卖。
+  "Flash-Sale Desk Lamp" has only 3 units in stock, handy for trying the oversell protection by hand.
 
-任何非本机环境都请覆盖默认密钥：
+For anything other than local use, override the defaults:
 
 ```bash
 JWT_SECRET=$(openssl rand -hex 32) ADMIN_PASSWORD='...' docker compose up --build
 ```
 
-跑完后可以用冒烟脚本验证整条链路（注册 → 幂等下单 → 重放 → 付款 → 重复付款被拒）：
+To see the payment timeout quickly, start with `ORDER_PAYMENT_TTL_SECONDS=60`, place an order and don't pay.
+
+A smoke test exercises the whole flow (register → idempotent order → replay → pay → double pay rejected):
 
 ```bash
 ./scripts/smoke-test.sh http://localhost:8080
 ```
 
-## 本地开发
+## Local development
 
-需要 Node 22、PostgreSQL 16、Redis 7（也可以只用 compose 起依赖：`docker compose up postgres redis`，并把端口映射出来）。
-
-```bash
-# 后端
-cd backend
-cp .env.example .env          # 按需修改 DATABASE_URL / REDIS_URL
-npm install
-npm run start:dev             # http://localhost:3000，启动时自动执行迁移
-
-# 前端（另一个终端）
-cd frontend
-npm install
-npm run dev                   # http://localhost:5173，/api 与 /uploads 代理到 :3000
-```
-
-## 测试
+Requires Node 22, PostgreSQL 16 and Redis 7 (or run just the dependencies with `docker compose up postgres redis` and expose their ports).
 
 ```bash
+# Backend
 cd backend
-npm test                      # 单元测试：状态机、幂等指纹、金额解析、图片校验
-npm run test:e2e              # 端到端：需要 Postgres 与 Redis（见下）
+cp .env.example .env          # adjust DATABASE_URL / REDIS_URL if needed
+npm install
+npm run start:dev             # http://localhost:3000, runs migrations on start
 
+# Frontend (in another terminal)
 cd frontend
-npm test                      # 组件与页面测试（fetch 被 mock）
+npm install
+npm run dev                   # http://localhost:5173, proxies /api and /uploads to :3000
 ```
 
-e2e 默认连接 `postgres://postgres:postgres@localhost:5432/prime_deals_test` 和 `redis://localhost:6379/15`，
-可用 `TEST_DATABASE_URL` / `TEST_REDIS_URL` 覆盖。测试会清空这个库和这个 Redis db，**不要指向有数据的实例**。
+## Tests
 
-e2e 覆盖的关键场景：
+```bash
+cd backend
+npm test                      # unit: state machine, idempotency fingerprint, price parsing, image checks
+npm run test:e2e              # end-to-end: needs PostgreSQL and Redis (see below)
 
-- 5 件库存、30 个买家并发下单 → 恰好 5 单成功，库存为 0，卖出数量为 5
-- 多商品订单以不同顺序并发争抢同一批商品 → 无死锁、无超卖
-- 同一个 `Idempotency-Key` 并发 10 次 → 只生成 1 个订单、只扣 1 次库存
-- Redis 中的幂等记录丢失后重试 → 由数据库唯一约束兜底，仍返回原订单
-- 同一 key 换了请求体 → 422
-- 付款与取消并发 → 恰好一个成功，库存与最终状态一致
-- 未付款订单到期 → 延时任务取消并回补库存；任务丢失时由清扫器兜底，且只回补一次
+cd frontend
+npm test                      # component and page tests (fetch is mocked)
+```
 
-## API 概览
+The end-to-end suite connects to `postgres://postgres:postgres@localhost:5432/prime_deals_test` and `redis://localhost:6379/15` by default; override with `TEST_DATABASE_URL` / `TEST_REDIS_URL`. It wipes that database and Redis db, so **never point it at an instance with real data**.
 
-所有接口前缀 `/api`，鉴权使用 `Authorization: Bearer <token>`。完整定义见 Swagger。
+Key scenarios covered end to end:
 
-| 方法 | 路径 | 角色 | 说明 |
+- 5 units, 30 concurrent buyers → exactly 5 orders, stock 0, 5 units sold
+- Multi-item orders competing for the same products in opposite orders → no deadlock, no oversell
+- One `Idempotency-Key` sent 10 times concurrently → one order, stock deducted once
+- Idempotency record deleted from Redis, then a retry → the database constraint still returns the original order
+- Same key reused with a different body → 422
+- Concurrent pay and cancel → exactly one wins; stock matches the final status
+- Unpaid order expires → the delayed job cancels it and restores stock; if the job is lost, the sweeper does it, once
+
+## API overview
+
+All routes are prefixed with `/api` and authenticated with `Authorization: Bearer <token>`. See Swagger for full schemas.
+
+| Method | Path | Who | Purpose |
 | --- | --- | --- | --- |
-| POST | `/auth/register` · `/auth/login` · `/auth/logout` | — | 注册（买家/卖家）、登录、注销（吊销 token） |
-| GET | `/products` · `/products/:id` · `/products/categories` | 公开 | 搜索、筛选、排序、分页；只展示已上架商品 |
-| POST/PATCH/DELETE | `/products` · `/products/:id` | 卖家 | 上传（multipart，≤5 张图）、编辑（重新进入审核）、下架 |
-| POST | `/products/:id/stock` | 卖家 | 相对调整库存 `{ delta }` |
-| GET/POST/PATCH/DELETE | `/cart` · `/cart/items[/:productId]` | 登录 | 购物车 |
-| POST | `/orders` | 登录 | 下单，**必须**带 `Idempotency-Key` 头 |
-| GET | `/orders` · `/orders/:id` · `/orders/sales` | 登录 / 卖家 | 我的订单、详情（含当前可执行的 `actions`）、卖家销售单 |
-| POST | `/orders/:id/pay` · `cancel` · `ship` · `confirm` | 按状态机授权 | 付款（模拟）、取消、发货、确认收货 |
-| GET/POST | `/admin/products` · `/admin/products/:id/approve` · `reject` | 管理员 | 审核队列 |
-| GET | `/admin/orders` · `/admin/users` | 管理员 | 全部订单、用户 |
+| POST | `/auth/register`, `/auth/login`, `/auth/logout` | anyone | Sign up (buyer or seller), sign in, sign out (revokes the token) |
+| GET | `/products`, `/products/:id`, `/products/categories` | public | Search, filter, sort, paginate; only approved products are listed |
+| POST / PATCH / DELETE | `/products`, `/products/:id` | seller | Create (multipart, up to 5 images), edit (goes back to review), archive |
+| POST | `/products/:id/stock` | seller | Relative stock adjustment `{ delta }` |
+| GET / POST / PATCH / DELETE | `/cart`, `/cart/items[/:productId]` | signed in | Cart |
+| POST | `/orders` | signed in | Place an order; the `Idempotency-Key` header is **required** |
+| GET | `/orders`, `/orders/:id`, `/orders/sales` | signed in / seller | My orders, details (including the `actions` I can take now), seller's sales |
+| POST | `/orders/:id/pay`, `cancel`, `ship`, `confirm` | per state machine | Pay (simulated), cancel, ship, confirm delivery |
+| GET / POST | `/admin/products`, `/admin/products/:id/approve`, `reject` | admin | Review queue |
+| GET | `/admin/orders`, `/admin/users` | admin | All orders, users |
 
-## 目录结构
+## Project structure
 
 ```
 backend/
   src/
-    auth/          JWT、全局鉴权守卫、登录限流、token 吊销
-    products/      商品、图片存储（魔数校验）、审核
-    cart/          购物车
-    orders/        订单服务、状态机、幂等、超时队列与清扫器
-    admin/         审核与管理接口、启动时的管理员/演示数据
-    database/      TypeORM 数据源与迁移
-  test/            e2e（真实 Postgres + Redis）
+    auth/          JWT, global auth guard, login throttling, token revocation
+    products/      products, image storage (magic-byte validation), review
+    cart/          cart
+    orders/        order service, state machine, idempotency, timeout queue and sweeper
+    admin/         review and admin endpoints, admin/demo bootstrap on start
+    database/      TypeORM data source and migrations
+  test/            end-to-end tests (real Postgres + Redis)
 frontend/
   src/
-    api/           类型化的 API 客户端
-    pages/         目录、商品、购物车、订单、卖家后台、审核
-    components/    价签、订单进度、倒计时等
-docs/DESIGN.md     设计说明
-scripts/           冒烟测试
+    api/           typed API client
+    pages/         catalogue, product, cart, orders, seller dashboard, review
+    components/    price tag, order progress, countdown and other UI pieces
+docs/DESIGN.md     design notes
+scripts/           smoke test
 ```
 
-## 配置
+## Configuration
 
-后端环境变量（完整列表见 `backend/.env.example`）：
+Backend environment variables (full list in `backend/.env.example`):
 
-| 变量 | 默认 | 说明 |
+| Variable | Default | Notes |
 | --- | --- | --- |
 | `DATABASE_URL` | `postgres://postgres:postgres@localhost:5432/prime_deals` | |
 | `REDIS_URL` | `redis://localhost:6379/0` | |
-| `JWT_SECRET` | — | 必填，≥16 字符；生产环境拒绝示例值 |
+| `JWT_SECRET` | — | Required, at least 16 characters; the example value is refused in production |
 | `JWT_EXPIRES_IN_SECONDS` | `7200` | |
-| `ORDER_PAYMENT_TTL_SECONDS` | `900` | 未付款订单的保留时间 |
-| `ORDER_SWEEP_INTERVAL_MS` | `60000` | 兜底清扫周期 |
-| `UPLOAD_DIR` | `./uploads` | 商品图片目录 |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | 启动时确保存在该管理员 |
-| `SEED_DEMO` | `false` | 目录为空时写入演示商品 |
+| `ORDER_PAYMENT_TTL_SECONDS` | `900` | How long an unpaid order holds its stock |
+| `ORDER_SWEEP_INTERVAL_MS` | `60000` | Safety-net sweep interval |
+| `UPLOAD_DIR` | `./uploads` | Product image directory |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | — | Ensures this admin account exists on start |
+| `SEED_DEMO` | `false` | Seeds demo products when the catalogue is empty |
+
+## Known limitations
+
+- Payment is simulated: `POST /orders/:id/pay` marks the order paid directly. A real integration would move this behind a verified payment-gateway webhook.
+- Paid orders cannot be refunded yet, and orders spanning several sellers are shipped by an admin rather than split per seller.
+- Images are stored on a local volume; multi-instance deployments should use object storage.
+
+See the last section of [docs/DESIGN.md](docs/DESIGN.md) for how each would be addressed.
