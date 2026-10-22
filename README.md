@@ -4,7 +4,7 @@
 
 A multi-seller e-commerce platform. Buyers browse, add to cart, place orders and pay; sellers list products; admins review listings before they go live.
 
-This is a rewrite of [dream-fire](https://github.com/tyh-star/dream-fire) (Spring Boot + MyBatis + Vue). It keeps the original feature set and adds the transactional core the old version lacked: **orders, oversell protection, idempotent checkout, an explicit order state machine, and automatic cancellation of unpaid orders**.
+This is a rewrite of my earlier Spring Boot + MyBatis + Vue version of the project. It keeps the original feature set and adds the transactional core the old version lacked: **orders, oversell protection, idempotent checkout, an explicit order state machine, and automatic cancellation of unpaid orders**.
 
 | Layer | Stack |
 | --- | --- |
